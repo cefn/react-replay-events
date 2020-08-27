@@ -36,6 +36,7 @@ function cloneMouseEvent(reactEvent, legacyMode = true, internetExplorer = false
     const cloneEvent = document.createEvent(eventType);
     if (internetExplorer) copyForInternetExplorer(reactEvent.nativeEvent, cloneEvent);
     cloneEvent.initEvent('click', true, false);
+    cloneEvent.stopPropagation(); //allow default event, don't notify listeners
     return cloneEvent;
   }
   else {
@@ -59,8 +60,7 @@ export function ReplayAncestor({ children }) {
   const handleClick = useCallback(async reactEvent => {
     if (!reactEvent.nativeEvent.alreadyPaused) {
       reactEvent.persist();
-      reactEvent.stopPropagation();
-      reactEvent.preventDefault();
+      reactEvent.preventDefault(); //prevent default event, but continue to notify listeners
       const cloneEvent = cloneMouseEvent(reactEvent, true);
       cloneEvent.alreadyPaused = true;
       await completeTask()
