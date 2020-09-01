@@ -32,8 +32,7 @@ function copyForInternetExplorer(fromEvent, toEvent) {
 function cloneMouseEvent(reactEvent, legacyMode = true, internetExplorer = false) {
   if (legacyMode) {
     //this seems to work in Chrome, Firefox, Safari
-    var eventType = reactEvent.nativeEvent.constructor.name;
-    const cloneEvent = document.createEvent(eventType);
+    const cloneEvent = document.createEvent("MouseEvent"); // should this be PointerEvent on IE/Others? 
     if (internetExplorer) copyForInternetExplorer(reactEvent.nativeEvent, cloneEvent);
     cloneEvent.initEvent('click', true, false);
     cloneEvent.stopPropagation(); //allow default event, don't notify listeners
@@ -58,13 +57,19 @@ export function ReplayAncestor({ children }) {
   }
 
   const handleClick = useCallback(async reactEvent => {
-    if (!reactEvent.nativeEvent.alreadyPaused) {
-      reactEvent.persist();
-      reactEvent.preventDefault(); //prevent default event, but continue to notify listeners
-      const cloneEvent = cloneMouseEvent(reactEvent, true);
-      cloneEvent.alreadyPaused = true;
-      await completeTask()
-      const cancelled = !reactEvent.target.dispatchEvent(cloneEvent);
+    try {
+      if (!(reactEvent.defaultPrevented || reactEvent.nativeEvent.alreadyPaused)) {
+        reactEvent.persist();
+        reactEvent.preventDefault(); //prevent default event, but continue to notify listeners
+        //handle case that preventDefault called by a later listener?
+        const cloneEvent = cloneMouseEvent(reactEvent, true);
+        cloneEvent.alreadyPaused = true;
+        await completeTask()
+        const cancelled = !reactEvent.target.dispatchEvent(cloneEvent);
+      }
+    }
+    catch (e) {
+      console.log(e);
     }
   });
 
