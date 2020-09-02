@@ -10,7 +10,6 @@ function cloneMouseEvent(reactEvent) {
   //this seems to work in Chrome, Firefox, Safari
   const cloneEvent = document.createEvent("MouseEvent"); // should this be PointerEvent on IE/Others? 
   cloneEvent.initEvent('click', true, false);
-  cloneEvent.stopPropagation(); //allow default event, don't notify listeners
   return cloneEvent;
 }
 
@@ -20,24 +19,43 @@ export function ReplayAncestor({ children }) {
 
   const sendToAti = async () => {
     setCompleted(false);
-    await sleep(50);
+    await sleep(2000);
     setCompleted(true);
   }
 
-  const handleClick = useCallback(async reactEvent => {
-    try {
-      if (!(reactEvent.defaultPrevented || reactEvent.nativeEvent.alreadyPaused)) {
-        reactEvent.persist();
-        reactEvent.preventDefault(); //prevent default event, but continue to notify listeners
-        //handle case that preventDefault called by a later listener?
-        const cloneEvent = cloneMouseEvent(reactEvent);
-        cloneEvent.alreadyPaused = true;
-        await sendToAti() //pretends to be ATI
-        const cancelled = !reactEvent.target.dispatchEvent(cloneEvent);
-      }
+  function mightNavigate(target) {
+    if (target.tagName && target.getAttribute) {
+      const tagName = target.tagName && target.tagName.toLowerCase();
+      const targetMightNavigate = (tagName === "a" && target.getAttribute("href")) ||
+        ((tagName === "button" || tagName === "input") && (!target.getAttribute("type") || target.getAttribute("type") === "submit"));
+      return targetMightNavigate;
     }
-    catch (e) {
-      console.log(e);
+  }
+
+  const handleClick = useCallback(async reactEvent => {
+    if ((reactEvent.defaultPrevented || reactEvent.nativeEvent.isResumedEvent) || !mightNavigate(reactEvent.target)) {
+      return;
+    }
+
+    reactEvent.persist();
+    reactEvent.preventDefault();
+
+    //spy on later calls to preventDefault
+    let preventedLater = false;
+    const oldPreventDefault = reactEvent.preventDefault.bind(reactEvent);
+    const newPreventDefault = (...args) => {
+      preventedLater = true;
+      oldPreventDefault(...args);
+    }
+    reactEvent.preventDefault = newPreventDefault;
+
+    await sendToAti() //pretends to be ATI
+
+    if (!preventedLater) { //no-one else halted the event, we must resume it
+      const cloneEvent = cloneMouseEvent(reactEvent);
+      cloneEvent.stopPropagation(); //don't notify listeners - they saw it the first time
+      cloneEvent.isResumedEvent = true; //remind ourselves this is artificial
+      reactEvent.target.dispatchEvent(cloneEvent);
     }
   });
 
