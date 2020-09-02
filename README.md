@@ -6,6 +6,8 @@ It incorporates a simple component test which proves click interception from a l
 
 Both of these cases are handled with the same code path of 'resuming' a DOM event (with no ATI or other click-modelling logic). It is hoped that all click cases are covered by it.
 
+To skip directly to the core implementation, see handleClick in [replay/lib/replay.js](replay/lib/replay.js)
+
 ```
 cd replay
 npx next dev
